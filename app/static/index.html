@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Кто недавно был здесь</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --accent: #6c63ff;
+      --accent-hover: #7f78ff;
+      --text: #e4e4e7;
+      --text-dim: #8b8d97;
+      --success: #34d399;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+      white-space: nowrap;
+    }
+
+    button:hover { background: var(--accent-hover) }
+    button:disabled { opacity: .5; cursor: default }
+
+    .toast {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      display: none;
+    }
+    .toast.ok  { display: block; background: #0d3326; color: var(--success); border: 1px solid #1a5c42 }
+    .toast.err { display: block; background: #3b1c1c; color: #f87171; border: 1px solid #5c2626 }
+
+    .visitor-list {
+      list-style: none;
+    }
+
+    .visitor-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.95rem;
+    }
+
+    .visitor-list li:last-child { border-bottom: none }
+
+    .visitor-name {
+      font-weight: 500;
+    }
+
+    .visitor-time {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-dim);
+      padding: 20px 0;
+      font-size: 0.95rem;
+    }
+
+    .refresh-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .refresh-row h2 { margin-bottom: 0 }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 6px 14px;
+      font-size: 0.85rem;
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--text) }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+    .fade-in { animation: fadeIn .25s ease }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Кто недавно был здесь</h1>
+    <p class="subtitle">Отметьтесь и посмотрите, кто заходил за последний час</p>
+
+    <div class="card">
+      <h2>Отметиться</h2>
+      <div class="input-row">
+        <input type="text" id="nameInput" placeholder="Ваше имя" autocomplete="off">
+        <button id="submitBtn">Отправить</button>
+      </div>
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <div class="card">
+      <div class="refresh-row">
+        <h2>Недавние посетители</h2>
+        <button class="btn-ghost" id="refreshBtn">Обновить</button>
+      </div>
+      <ul class="visitor-list" id="visitorList">
+        <li class="empty-state">Загрузка…</li>
+      </ul>
+    </div>
+  </div>
+
+<script>
+const nameInput   = document.getElementById("nameInput");
+const submitBtn   = document.getElementById("submitBtn");
+const toast       = document.getElementById("toast");
+const refreshBtn  = document.getElementById("refreshBtn");
+const visitorList = document.getElementById("visitorList");
+
+async function loadVisitors() {
+  try {
+    const res  = await fetch("/api/visitors");
+    const data = await res.json();
+    if (!data.length) {
+      visitorList.innerHTML = '<li class="empty-state">Пока никто не заходил</li>';
+      return;
+    }
+    visitorList.innerHTML = data.map(v =>
+      `<li class="fade-in">
+        <span class="visitor-name">${esc(v.name)}</span>
+        <span class="visitor-time">${esc(v.time)}</span>
+      </li>`
+    ).join("");
+  } catch {
+    visitorList.innerHTML = '<li class="empty-state">Ошибка загрузки</li>';
+  }
+}
+
+async function submit() {
+  const name = nameInput.value.trim();
+  if (!name) return;
+  submitBtn.disabled = true;
+  try {
+    const res  = await fetch("/api/visit", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(`${data.name} отмечен(а)!`, "ok");
+      nameInput.value = "";
+      loadVisitors();
+    } else {
+      showToast(data.error || "Ошибка", "err");
+    }
+  } catch {
+    showToast("Сервер недоступен", "err");
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+function showToast(msg, type) {
+  toast.textContent = msg;
+  toast.className = "toast " + type;
+  setTimeout(() => { toast.className = "toast" }, 3000);
+}
+
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+submitBtn.addEventListener("click", submit);
+nameInput.addEventListener("keydown", e => { if (e.key === "Enter") submit() });
+refreshBtn.addEventListener("click", loadVisitors);
+
+loadVisitors();
+</script>
+</body>
+</html>
